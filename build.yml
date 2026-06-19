@@ -1,0 +1,81 @@
+name: LeeScreen — Build Windows .exe + Android .apk
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ════════════════════════════════════════════
+  # JOB 1: Windows .exe (Python 3.11, tkinter)
+  # ════════════════════════════════════════════
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # ← 3.11, NO 3.14
+
+      - name: Instalar dependencias
+        run: pip install Pillow numpy opencv-python pyinstaller
+
+      - name: Compilar EXE
+        run: |
+          pyinstaller --onefile --noconsole --name LeeScreen `
+            --hidden-import=PIL.ImageTk `
+            --hidden-import=PIL.ImageGrab `
+            leescreen_windows.py
+
+      - name: Subir artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LeeScreen-Windows-exe
+          path: windows/dist/LeeScreen.exe
+          retention-days: 30
+
+  # ════════════════════════════════════════════
+  # JOB 2: Android .apk (Buildozer)
+  # ════════════════════════════════════════════
+  build-android:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias del sistema
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            python3-pip build-essential git zip unzip openjdk-17-jdk \
+            ccache libncurses5 libstdc++6 zlib1g-dev libffi-dev libssl-dev
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: buildozer-${{ hashFiles('android/buildozer.spec') }}
+
+      - name: Instalar Buildozer
+        run: pip install buildozer cython
+
+      - name: Compilar APK
+        run: buildozer -v android debug
+
+      - name: Subir artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LeeScreen-Android-apk
+          path: android/bin/*.apk
+          retention-days: 30
